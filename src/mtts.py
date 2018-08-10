@@ -118,6 +118,21 @@ def _mfa_align(txtlines, wav_dir_path, output_path, acoustic_model_path):
     os.system('%s %s/wav %s %s %s/textgrid' %
             (mfa_align_path, output_path, lexicon_path, acoustic_model_path, output_path))
 
+def _mfa_train_and_align(txtlines, wav_dir_path, output_path):
+    logger = logging.getLogger('mtts')
+    logger.info('Start montreal forced align')
+    base_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    os.makedirs('%s/wav' % output_path, exist_ok=True)
+    wav_dir_real_path = os.path.realpath(wav_dir_path)
+    symbolic_path = '%s/wav/mandarin_voice' % output_path
+    if not os.path.exists(symbolic_path):
+        os.system('ln -s %s %s' % (wav_dir_real_path, symbolic_path))
+    mfa_align_path = os.path.join(base_dir, 'tools/montreal-forced-aligner/bin/mfa_train_and_align')
+    lexicon_path = os.path.join(base_dir, 'misc/mandarin_mtts.lexicon')
+
+    os.system('%s %s/wav %s %s/textgrid' %
+            (mfa_align_path, output_path, lexicon_path, output_path))
+
 def _textgrid2sfs(txtlines, output_path):
     logger = logging.getLogger('mtts')
     textgrid_path = os.path.join(output_path, 'textgrid/mandarin_voice')
@@ -200,13 +215,16 @@ def _set_logger(output_path):
 
     logger.setLevel(logging.DEBUG)
 
-def generate_label(txtfile, wav_dir_path, output_path, acoustic_model_path):
+def generate_label(txtfile, wav_dir_path, output_path, acoustic_model_path, train_acoustic_model):
     _set_logger(output_path)
     txtlines = _txt_preprocess(txtfile, output_path)
     _pre_pinyin_setting()
     _add_lab(txtlines, wav_dir_path)
     #_add_pinyin(txtlines, output_path)
-    _mfa_align(txtlines, wav_dir_path, output_path, acoustic_model_path)
+    if train_acoustic_model:
+        _mfa_train_and_align(txtlines, wav_dir_path, output_path)
+    else:
+        _mfa_align(txtlines, wav_dir_path, output_path, acoustic_model_path)
     _textgrid2sfs(txtlines, output_path)
     _sfs2label(txtlines, output_path)
 
@@ -225,9 +243,11 @@ if __name__ == '__main__':
                         help="Full path to output directory, will be created if it doesn't exist")
     parser.add_argument('-a', '--acoustic_model_path', type=str, default='misc/thchs30.zip',
                         help='Full path to acoustic model for forced aligner, default is misc/thchs30.zip')
+    parser.add_argument('-t', '--train_acoustic_model', action="store_true", default=False,
+                        help='True is train acoustic model, default is False')
     args = parser.parse_args()
 
     os.system('mkdir -p %s' % args.output_path)
 
-    generate_label(args.txtfile, args.wav_dir_path, args.output_path, args.acoustic_model_path)
+    generate_label(args.txtfile, args.wav_dir_path, args.output_path, args.acoustic_model_path, args.train_acoustic_model)
 
